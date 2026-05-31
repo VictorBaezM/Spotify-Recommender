@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTopArtists, searchArtist, getArtistTracksViaSearch } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTracksViaSearch, clearCache } from '../api/spotify';
 import * as spotifyAuth from '../auth/spotifyAuth';
 
 vi.mock('../auth/spotifyAuth', () => ({
@@ -12,6 +12,7 @@ describe('Spotify API Layer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearCache();
     tokenRef = {
       current: {
         access_token: 'mock-token',

@@ -148,7 +148,7 @@ export function usePipeline(tokenRef) {
         try {
           const results = await searchArtist(candidates[i].name, tokenRef);
           if (currentRunId !== runIdRef.current || abortRef.current) return;
-          await delay(300);
+          await delay(600);
 
           if (results && results.length > 0) {
             const best = results
@@ -208,7 +208,7 @@ export function usePipeline(tokenRef) {
             throw err;
           }
         }
-        await delay(300);
+        await delay(600);
       }
 
         // STEP 4: Build exclusion set (Cached!)

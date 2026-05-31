@@ -26,10 +26,12 @@ function App() {
     };
   }, [token, timeRange, run, abort]);
 
-  // Load instant heavy rotation favorites
+  // Load instant heavy rotation favorites (staggered by 1000ms to prevent startup API spikes)
   useEffect(() => {
-    if (token) {
-      setInstantLoading(true);
+    if (!token) return;
+
+    setInstantLoading(true);
+    const timer = setTimeout(() => {
       Promise.allSettled([
         getTopTracks(tokenRef, 15),
         getRecentlyPlayed(tokenRef, 15)
@@ -45,7 +47,9 @@ function App() {
         setInstantTracks([...merged.values()].slice(0, 10));
         setInstantLoading(false);
       });
-    }
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [token, tokenRef]);
 
   // Sync warnings state

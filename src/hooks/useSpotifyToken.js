@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStoredToken, exchangeCodeForToken, clearToken, redirectToSpotifyLogin, getSpotifyLoginUrl } from '../auth/spotifyAuth';
+import { clearCache } from '../api/spotify';
 
 export function useSpotifyToken() {
   const [token, setToken] = useState(null);
@@ -65,6 +66,7 @@ export function useSpotifyToken() {
   };
 
   const logout = () => {
+    clearCache();
     clearToken();
     setToken(null);
     tokenRef.current = null;
