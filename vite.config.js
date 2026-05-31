@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS ? '/spotify-music-recommender/' : '/',
+  base: process.env.GITHUB_ACTIONS ? '/Spotify-Recommender/' : '/',
   plugins: [
     react(),
     tailwindcss(),
