@@ -1,7 +1,7 @@
 import { generateCodeVerifier, generateCodeChallenge } from './pkce';
 import { SPOTIFY_CLIENT_ID, REDIRECT_URI, SCOPES } from '../config';
 
-export async function redirectToSpotifyLogin() {
+export async function getSpotifyLoginUrl() {
   const verifier = generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
   sessionStorage.setItem('pkce_verifier', verifier);
@@ -14,7 +14,12 @@ export async function redirectToSpotifyLogin() {
     code_challenge_method: 'S256',
     code_challenge: challenge,
   });
-  window.location.href = `https://accounts.spotify.com/authorize?${params}`;
+  return `https://accounts.spotify.com/authorize?${params}`;
+}
+
+export async function redirectToSpotifyLogin() {
+  const url = await getSpotifyLoginUrl();
+  window.location.href = url;
 }
 
 export async function exchangeCodeForToken(code) {

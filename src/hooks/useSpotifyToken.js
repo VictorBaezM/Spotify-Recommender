@@ -1,11 +1,27 @@
-import { useState, useEffect, useRef } from 'react';
-import { getStoredToken, exchangeCodeForToken, clearToken, redirectToSpotifyLogin } from '../auth/spotifyAuth';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { getStoredToken, exchangeCodeForToken, clearToken, redirectToSpotifyLogin, getSpotifyLoginUrl } from '../auth/spotifyAuth';
 
 export function useSpotifyToken() {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loginUrl, setLoginUrl] = useState('');
   const tokenRef = useRef(null);
+
+  const precomputeUrl = useCallback(async () => {
+    try {
+      const url = await getSpotifyLoginUrl();
+      setLoginUrl(url);
+    } catch (err) {
+      console.error('Failed to precompute Spotify login URL:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      precomputeUrl();
+    }
+  }, [token, precomputeUrl]);
 
   useEffect(() => {
     async function initToken() {
@@ -41,7 +57,11 @@ export function useSpotifyToken() {
   }, []);
 
   const login = () => {
-    redirectToSpotifyLogin();
+    if (loginUrl) {
+      window.location.href = loginUrl;
+    } else {
+      redirectToSpotifyLogin();
+    }
   };
 
   const logout = () => {
