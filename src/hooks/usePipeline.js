@@ -141,14 +141,14 @@ export function usePipeline(tokenRef) {
       setStep(2);
       setProgress(0);
       const resolved = [];
-      const maxToResolve = Math.min(candidates.length, 12);
+      const maxToResolve = Math.min(candidates.length, 6);
       for (let i = 0; i < maxToResolve; i++) {
         if (currentRunId !== runIdRef.current || abortRef.current) return;
         setProgress(Math.round((i / maxToResolve) * 100));
         try {
           const results = await searchArtist(candidates[i].name, tokenRef);
           if (currentRunId !== runIdRef.current || abortRef.current) return;
-          await delay(250);
+          await delay(300);
 
           if (results && results.length > 0) {
             const best = results
@@ -192,7 +192,7 @@ export function usePipeline(tokenRef) {
       setStep(3);
       setProgress(0);
       const candidateTracks = [];
-      const maxToFetch = Math.min(resolved.length, 8);
+      const maxToFetch = Math.min(resolved.length, 4);
       for (let i = 0; i < maxToFetch; i++) {
         if (currentRunId !== runIdRef.current || abortRef.current) return;
         setProgress(Math.round((i / maxToFetch) * 100));
@@ -208,7 +208,7 @@ export function usePipeline(tokenRef) {
             throw err;
           }
         }
-        await delay(250);
+        await delay(300);
       }
 
         // STEP 4: Build exclusion set (Cached!)
