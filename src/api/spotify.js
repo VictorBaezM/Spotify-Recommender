@@ -59,6 +59,8 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
     headers: { Authorization: `Bearer ${token.access_token}` },
   });
 
+  console.log(`[Spotify API] GET ${path.split('?')[0]} - Status: ${res.status} (Attempt ${retryCount + 1})`);
+
   if (res.status === 401) {
     if (retryCount >= 1) {
       console.error('Token rejected even after refresh. Stopping request.');

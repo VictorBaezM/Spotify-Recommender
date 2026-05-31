@@ -142,9 +142,12 @@ export function usePipeline(tokenRef) {
       setProgress(0);
       const resolved = [];
       const maxToResolve = Math.min(candidates.length, 6);
+      console.log(`[Pipeline Step 2] Starting resolution of ${maxToResolve} candidate artists...`);
       for (let i = 0; i < maxToResolve; i++) {
         if (currentRunId !== runIdRef.current || abortRef.current) return;
-        setProgress(Math.round((i / maxToResolve) * 100));
+        const progressPercent = Math.round((i / maxToResolve) * 100);
+        setProgress(progressPercent);
+        console.log(`[Pipeline Step 2] Resolving artist ${i + 1}/${maxToResolve}: "${candidates[i].name}" (${progressPercent}%)`);
         try {
           const results = await searchArtist(candidates[i].name, tokenRef);
           if (currentRunId !== runIdRef.current || abortRef.current) return;
@@ -156,8 +159,13 @@ export function usePipeline(tokenRef) {
               .sort((a, b) => b._matchScore - a._matchScore)[0];
 
             if (best && isAcceptableMatch(candidates[i].name, best)) {
+              console.log(`[Pipeline Step 2] Success: matched "${candidates[i].name}" -> "${best.name}" (Fuzzy Match Score: ${best._matchScore})`);
               resolved.push({ ...best, _lastfmScore: candidates[i].score });
+            } else {
+              console.log(`[Pipeline Step 2] Rejected matches for "${candidates[i].name}". Best found: "${best?.name}" (Fuzzy Match Score: ${best?._matchScore})`);
             }
+          } else {
+            console.log(`[Pipeline Step 2] No Spotify results returned for artist "${candidates[i].name}"`);
           }
         } catch (err) {
           console.error(`Failed to resolve artist ${candidates[i].name}:`, err);
@@ -193,14 +201,20 @@ export function usePipeline(tokenRef) {
       setProgress(0);
       const candidateTracks = [];
       const maxToFetch = Math.min(resolved.length, 4);
+      console.log(`[Pipeline Step 3] Starting candidate track fetch for ${maxToFetch} resolved artists...`);
       for (let i = 0; i < maxToFetch; i++) {
         if (currentRunId !== runIdRef.current || abortRef.current) return;
-        setProgress(Math.round((i / maxToFetch) * 100));
+        const progressPercent = Math.round((i / maxToFetch) * 100);
+        setProgress(progressPercent);
+        console.log(`[Pipeline Step 3] Fetching tracks for artist ${i + 1}/${maxToFetch}: "${resolved[i].name}" (${progressPercent}%)`);
         try {
           const tracks = await getArtistTracksViaSearch(resolved[i].name, tokenRef, 10);
           if (currentRunId !== runIdRef.current || abortRef.current) return;
           if (tracks) {
+            console.log(`[Pipeline Step 3] Success: retrieved ${tracks.length} candidate tracks for "${resolved[i].name}"`);
             tracks.forEach(t => candidateTracks.push({ ...t, _artistSimilarity: resolved[i]._lastfmScore }));
+          } else {
+            console.log(`[Pipeline Step 3] No tracks found for artist "${resolved[i].name}"`);
           }
         } catch (err) {
           console.error(`Failed to fetch tracks via search for artist ${resolved[i].name}:`, err);
