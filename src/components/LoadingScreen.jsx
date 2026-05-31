@@ -1,11 +1,11 @@
 import React from 'react';
 
-export function LoadingScreen({ step, progress, steps }) {
+export function LoadingScreen({ step, progress, steps, logs }) {
   // Calculate percentage of pipeline completion
   const totalPercent = Math.round(((step >= 0 ? step : 0) / steps.length) * 100);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-200 px-4 py-8 max-w-lg mx-auto">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-200 px-4 py-8 max-w-lg mx-auto w-full">
       <div className="w-full bg-neutral-900/60 backdrop-blur-md rounded-2xl border border-neutral-800 p-8 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold tracking-tight text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
@@ -91,6 +91,38 @@ export function LoadingScreen({ step, progress, steps }) {
             );
           })}
         </ul>
+
+        {/* Diagnostic Log Console */}
+        {logs && logs.length > 0 && (
+          <div className="mt-6 border border-neutral-800 bg-black/40 rounded-xl p-4 space-y-2 text-left">
+            <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2 mb-2 select-none">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 font-mono">
+                System Diagnostic Console
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            </div>
+            <div 
+              className="max-h-36 overflow-y-auto text-[11px] font-mono text-neutral-300 space-y-1.5 scrollbar-thin scrollbar-thumb-neutral-800 select-text"
+              ref={(el) => {
+                if (el) el.scrollTop = el.scrollHeight;
+              }}
+            >
+              {logs.map((log, index) => {
+                let colorClass = "text-neutral-400";
+                if (log.includes("Error") || log.includes("failed") || log.includes("Failed")) colorClass = "text-red-400";
+                else if (log.includes("Warning") || log.includes("429") || log.includes("limited")) colorClass = "text-amber-400";
+                else if (log.includes("Success") || log.includes("Success:") || log.includes("success")) colorClass = "text-emerald-400";
+                else if (log.includes("triggered") || log.includes("started") || log.includes("Triggered")) colorClass = "text-sky-400";
+                
+                return (
+                  <div key={index} className={`leading-relaxed break-words ${colorClass}`}>
+                    {log}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

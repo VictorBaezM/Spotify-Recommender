@@ -37,20 +37,22 @@ const localCache = {
 
 async function spotifyFetch(path, tokenRef, retryCount = 0) {
   let token = tokenRef.current ?? getStoredToken();
+  const log = tokenRef?.onLog || ((msg) => console.log(msg));
 
   if (!token) return null;
 
   // Proactively refresh if expiring within 60s
   if (token.expires_at - Date.now() < 60_000) {
     if (retryCount >= 1) {
-      console.error('Proactive refresh failed repeatedly. Stopping request.');
+      log('Proactive token refresh failed repeatedly. Stopping request.');
       return null;
     }
     try {
+      log('Session expiring in < 60s. Proactively refreshing token...');
       token = await refreshToken(token);
       tokenRef.current = token;
     } catch (err) {
-      console.error('Proactive token refresh error:', err);
+      log(`Proactive token refresh error: ${err.message || err}`);
       return null;
     }
   }
@@ -59,37 +61,39 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
     headers: { Authorization: `Bearer ${token.access_token}` },
   });
 
-  console.log(`[Spotify API] GET ${path.split('?')[0]} - Status: ${res.status} (Attempt ${retryCount + 1})`);
+  const cleanPath = path.split('?')[0];
+  log(`[Spotify API] GET ${cleanPath} - Status: ${res.status} (Attempt ${retryCount + 1})`);
 
   if (res.status === 401) {
     if (retryCount >= 1) {
-      console.error('Token rejected even after refresh. Stopping request.');
+      log('Token rejected even after refresh. Stopping request.');
       return null;
     }
     try {
+      log('Session expired (401). Reactively refreshing token and retrying...');
       token = await refreshToken(token);
       tokenRef.current = token;
       return spotifyFetch(path, tokenRef, retryCount + 1); // Retry once
     } catch (err) {
-      console.error('Reactive token refresh error:', err);
+      log(`Reactive token refresh error: ${err.message || err}`);
       return null;
     }
   }
 
   if (res.status === 429) {
-    if (retryCount >= 4) { // Increased retries to 4 to tolerate transient spikes
-      console.error('Rate limited repeatedly. Stopping request.');
+    if (retryCount >= 4) { // Increased retries to tolerate transient spikes
+      log('Rate limited repeatedly. Stopping request.');
       throw new Error('RATE_LIMIT_EXCEEDED');
     }
     const retryAfterHeader = res.headers.get('Retry-After');
     let retryAfter = parseInt(retryAfterHeader, 10);
     if (isNaN(retryAfter)) {
-      retryAfter = 6; // Increased fallback to 6s for CORS-hidden headers
+      retryAfter = 6; // Increased fallback for CORS-hidden headers
     }
     // Exponential backoff base 3 with randomized jitter to disperse concurrent retries
     const jitter = Math.random() * 1000;
     const wait = (retryAfter + Math.pow(3, retryCount)) * 1000 + jitter;
-    console.warn(`[429 Rate Limit] Waiting ${Math.round(wait)}ms before retry ${retryCount + 1}...`);
+    log(`[429 Rate Limit] Spotify returned 429. Waiting ${Math.round(wait)}ms before retry ${retryCount + 1}...`);
     await delay(wait);
     return spotifyFetch(path, tokenRef, retryCount + 1);
   }

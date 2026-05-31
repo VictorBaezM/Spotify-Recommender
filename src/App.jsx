@@ -10,7 +10,7 @@ import { getTopTracks, getRecentlyPlayed } from './api/spotify';
 
 function App() {
   const { token, tokenRef, loading: tokenLoading, error: tokenError, login, logout } = useSpotifyToken();
-  const { run, abort, step, progress, recommendations, error: pipelineError, warnings, PIPELINE_STEPS } = usePipeline(tokenRef);
+  const { run, abort, step, progress, recommendations, error: pipelineError, warnings, logs, PIPELINE_STEPS } = usePipeline(tokenRef);
   const [timeRange, setTimeRange] = useState('medium_term');
   const [localWarnings, setLocalWarnings] = useState([]);
   const [instantTracks, setInstantTracks] = useState([]);
@@ -142,7 +142,7 @@ function App() {
           <div className="lg:col-span-8 space-y-6 w-full">
             {isPipelineRunning ? (
               <div className="bg-neutral-950/20 border border-neutral-900/80 rounded-2xl p-6 shadow-xl space-y-4">
-                <LoadingScreen step={step} progress={progress} steps={PIPELINE_STEPS} />
+                <LoadingScreen step={step} progress={progress} steps={PIPELINE_STEPS} logs={logs} />
                 <div className="flex justify-center mt-2">
                   <button
                     onClick={abort}
