@@ -37,7 +37,7 @@ jobs:
         env:
           VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
-          VITE_REDIRECT_URI: https://VictorBaezM.github.io/Spotify-Recommender/
+          VITE_REDIRECT_URI: https://victorbaezm.github.io/Spotify-Recommender/
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
