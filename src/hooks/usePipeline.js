@@ -186,6 +186,13 @@ export function usePipeline(tokenRef) {
 
         addLog(`Step 0 Success: Retrieved ${topArtists.length} top artists.`);
 
+        if (topArtists.length > 5) {
+          addLog(`Step 0 Optimization: Selecting 5 random artists from your top roster to optimize API budget and maximize recommendation variety.`);
+          const shuffled = [...topArtists].sort(() => 0.5 - Math.random());
+          topArtists = shuffled.slice(0, 5);
+          addLog(`Step 0 Selected: ${topArtists.map(a => `"${a.name}"`).join(', ')}`);
+        }
+
         // STEP 1: Last.fm similar artists
         setStep(1);
         setProgress(0);
