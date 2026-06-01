@@ -46,9 +46,6 @@ describe('Full pipeline integration', () => {
       if (id === 'b2') {
         return [{ id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] }];
       }
-      if (id === '5INjqkS1o8h1imAzPqGZBb') { // Curated fallback ID for Tame Impala
-        return [{ id: 't3', name: 'Borderline', popularity: 75, artists: [{ name: 'Tame Impala' }] }];
-      }
       return [];
     });
     spotifyApi.getTopTracks.mockResolvedValue([]);

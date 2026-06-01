@@ -40,70 +40,6 @@ export function usePipeline(tokenRef) {
     console.log(`[${time}] ${msg}`);
   }, []);
 
-  // Universal curated popular hits fallback generator
-  const runCuratedPopularFallback = useCallback(async (currentRunId) => {
-    addLog('No listening history found or candidates exhausted. Generating Curated Popular Hits...');
-    addWarning('Using Curated Popular Hits because your listening history is too fresh or niche.');
-
-    setStep(3); // Step 3: Fetching tracks
-    setProgress(0);
-    const fallbackArtists = [
-      { name: 'Tame Impala', id: '5INjqkS1o8h1imAzPqGZBb' },
-      { name: 'Gorillaz', id: '3AA28KZvwAUcZuOKwyblJQ' },
-      { name: 'Daft Punk', id: '4tZwfBAbgWc15R2x34BrC7' },
-      { name: 'Billie Eilish', id: '6qqNVTkY8uByO4C3g67a4s' },
-      { name: 'The Weeknd', id: '1Xyo1hbrkuLq14NcvZ518t' },
-      { name: 'Radiohead', id: '4Z8W4fKeB5YxbusRsdQVPb' }
-    ];
-    const fallbackTracks = [];
-
-    for (let i = 0; i < fallbackArtists.length; i++) {
-      if (currentRunId !== runIdRef.current || abortRef.current) return;
-      const progressPercent = Math.round((i / fallbackArtists.length) * 100);
-      setProgress(progressPercent);
-      addLog(`Fetching popular tracks for Curated Artist ${i + 1}/${fallbackArtists.length}: "${fallbackArtists[i].name}" (${progressPercent}%)`);
-      try {
-        const tracks = await getArtistTopTracks(fallbackArtists[i].id, tokenRef, 'US');
-        if (tracks && tracks.length > 0) {
-          addLog(`Success: Retrieved ${tracks.length} tracks for "${fallbackArtists[i].name}"`);
-          tracks.slice(0, 6).forEach(t => {
-            fallbackTracks.push({
-              ...t,
-              _artistSimilarity: 0.8,
-              _score: (t.popularity || 50) * 0.8
-            });
-          });
-        }
-      } catch (err) {
-        addLog(`Failed to fetch popular tracks for "${fallbackArtists[i].name}": ${err.message || err}`);
-      }
-      await delay(400); // Pace requests to stay rate limit safe
-    }
-
-    if (fallbackTracks.length === 0) {
-      setError({
-        message: 'Failed to fetch curated popular hits. Please check your network connection and try again.',
-        recoverable: true,
-        fallback: 'retry'
-      });
-      addLog('Failed to generate curated popular hits: zero tracks resolved.');
-      setStep(-1);
-      return;
-    }
-
-    // Step 6: Rank
-    setStep(6);
-    setProgress(0);
-    addLog('Step 6: Sorting and ranking curated popular hits...');
-
-    const sorted = fallbackTracks.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    const ranked = sorted.slice(0, 25);
-
-    setRecommendations(ranked);
-    setStep(-1);
-    addLog(`Pipeline finished successfully using Curated Popular Hits! Generated ${ranked.length} recommendations.`);
-  }, [tokenRef, addLog]);
-
   const run = useCallback(async (initialTimeRange = 'medium_term') => {
     runIdRef.current += 1;
     const currentRunId = runIdRef.current;
@@ -186,8 +122,12 @@ export function usePipeline(tokenRef) {
             continue;
           }
 
-          // ABSOLUTE FALLBACK: fresh account with zero listening data -> Curated Popular Hits!
-          await runCuratedPopularFallback(currentRunId);
+          // No listening history found on account
+          setError({
+            message: 'No listening history found on your Spotify account. Please listen to some music on Spotify and try again!',
+            recoverable: false
+          });
+          setStep(-1);
           return;
         }
 
@@ -251,8 +191,12 @@ export function usePipeline(tokenRef) {
             continue;
           }
 
-          // FALLBACK: No similarities returned -> Curated Popular Hits!
-          await runCuratedPopularFallback(currentRunId);
+          // No similarities returned by Last.fm
+          setError({
+            message: 'Could not find similar artists for your listening profile on Last.fm. Please try a different time range!',
+            recoverable: true
+          });
+          setStep(-1);
           return;
         }
 
@@ -310,8 +254,12 @@ export function usePipeline(tokenRef) {
             continue;
           }
           
-          // FALLBACK: Zero resolved similarity candidates -> Curated Popular Hits!
-          await runCuratedPopularFallback(currentRunId);
+          // Zero resolved similarity candidates matched on Spotify
+          setError({
+            message: 'Could not match any similar artists to the Spotify catalog. Please try a different time range!',
+            recoverable: true
+          });
+          setStep(-1);
           return;
         }
 
@@ -346,10 +294,13 @@ export function usePipeline(tokenRef) {
           await delay(600);
         }
 
-        // FALLBACK: No track candidates retrieved -> Curated Popular Hits!
+        // No track candidates retrieved for any matched artists on Spotify
         if (candidateTracks.length === 0) {
-          addLog('Step 3 Failed: Zero tracks retrieved for candidates. Fallback to Curated Popular Hits...');
-          await runCuratedPopularFallback(currentRunId);
+          setError({
+            message: 'Could not fetch any tracks for the matched artists on Spotify. Please try again!',
+            recoverable: true
+          });
+          setStep(-1);
           return;
         }
 
@@ -445,7 +396,7 @@ export function usePipeline(tokenRef) {
         return;
       }
     }
-  }, [tokenRef, runCuratedPopularFallback, addLog]);
+  }, [tokenRef, addLog]);
 
   // Helper functions for automatic recovery cycling
   function getNextTimeRange(current, tried) {
