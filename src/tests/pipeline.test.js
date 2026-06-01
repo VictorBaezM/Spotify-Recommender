@@ -39,11 +39,11 @@ describe('Full pipeline integration', () => {
       }
       return [];
     });
-    spotifyApi.getArtistTopTracks.mockImplementation(async (id) => {
-      if (id === 'b1') {
+    spotifyApi.getArtistTracksViaSearch.mockImplementation(async (name) => {
+      if (name === 'MGMT') {
         return [{ id: 't1', name: 'Electric Feel', popularity: 85, artists: [{ name: 'MGMT' }] }];
       }
-      if (id === 'b2') {
+      if (name === 'Beach House') {
         return [{ id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] }];
       }
       return [];
