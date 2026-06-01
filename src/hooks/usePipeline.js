@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { getTopArtists, searchArtist, getArtistTopTracks, getArtistTracksViaSearch, getTopTracks, getRecentlyPlayed, getSavedTracks, getCurrentUserCountry } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTopTracks, getArtistTracksViaSearch, getTopTracks, getRecentlyPlayed, getSavedTracks, getCurrentUserCountry, getTracksDetails } from '../api/spotify';
 import { getSimilarArtists } from '../api/lastfm';
 import { aggregateSimilarArtists } from '../pipeline/aggregate';
 import { isAcceptableMatch, artistMatchScore } from '../pipeline/fuzzyMatch';
@@ -305,6 +305,27 @@ export function usePipeline(tokenRef) {
         }
 
         addLog(`Step 3 Success: Fetched ${candidateTracks.length} total tracks.`);
+
+        // Batch hydrate candidate track details to obtain actual popularity values
+        if (candidateTracks.length > 0) {
+          addLog('Step 3 Hydration: Hydrating track popularity scores via batch Spotify API...');
+          try {
+            const trackIds = candidateTracks.map(t => t.id).filter(Boolean);
+            const fullTracks = await getTracksDetails(trackIds, tokenRef);
+            if (currentRunId !== runIdRef.current || abortRef.current) return;
+            if (fullTracks && fullTracks.length > 0) {
+              const popularityMap = new Map(fullTracks.filter(Boolean).map(t => [t.id, t.popularity]));
+              candidateTracks.forEach(t => {
+                if (popularityMap.has(t.id)) {
+                  t.popularity = popularityMap.get(t.id);
+                }
+              });
+              addLog(`Step 3 Hydration Success: Successfully hydrated popularity for ${fullTracks.length} tracks.`);
+            }
+          } catch (err) {
+            addLog(`Step 3 Hydration Warning: Failed to fetch track popularity: ${err.message || err}`);
+          }
+        }
 
         // STEP 4: Build exclusion set (Cached!)
         setStep(4);

@@ -35,8 +35,8 @@ const localCache = {
   _memCache: new Map()
 };
 
-async function spotifyFetch(path, tokenRef, retryCount = 0) {
-  let token = tokenRef.current ?? getStoredToken();
+async function spotifyFetch(path, tokenRef, options = {}, retryCount = 0) {
+  let token = tokenRef?.current ?? getStoredToken();
   const log = tokenRef?.onLog || ((msg) => console.log(msg));
 
   if (!token) return null;
@@ -50,19 +50,27 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
     try {
       log('Session expiring in < 60s. Proactively refreshing token...');
       token = await refreshToken(token);
-      tokenRef.current = token;
+      if (tokenRef) tokenRef.current = token;
     } catch (err) {
       log(`Proactive token refresh error: ${err.message || err}`);
       return null;
     }
   }
 
-  const res = await fetch(`https://api.spotify.com/v1${path}`, {
-    headers: { Authorization: `Bearer ${token.access_token}` },
-  });
+  const method = options.method ?? 'GET';
+  const headers = {
+    Authorization: `Bearer ${token.access_token}`,
+    ...options.headers
+  };
+  const fetchOpts = { method, headers };
+  if (options.body) {
+    fetchOpts.body = options.body;
+  }
+
+  const res = await fetch(`https://api.spotify.com/v1${path}`, fetchOpts);
 
   const cleanPath = path.split('?')[0];
-  log(`[Spotify API] GET ${cleanPath} - Status: ${res.status} (Attempt ${retryCount + 1})`);
+  log(`[Spotify API] ${method} ${cleanPath} - Status: ${res.status} (Attempt ${retryCount + 1})`);
 
   if (res.status === 401) {
     if (retryCount >= 1) {
@@ -72,8 +80,8 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
     try {
       log('Session expired (401). Reactively refreshing token and retrying...');
       token = await refreshToken(token);
-      tokenRef.current = token;
-      return spotifyFetch(path, tokenRef, retryCount + 1); // Retry once
+      if (tokenRef) tokenRef.current = token;
+      return spotifyFetch(path, tokenRef, options, retryCount + 1); // Retry once
     } catch (err) {
       log(`Reactive token refresh error: ${err.message || err}`);
       return null;
@@ -109,11 +117,18 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
     const wait = (retryAfter + Math.pow(3, retryCount)) * 1000 + jitter;
     log(`[429 Rate Limit] Spotify returned 429. Waiting ${Math.round(wait)}ms before retry ${retryCount + 1}...`);
     await delay(wait);
-    return spotifyFetch(path, tokenRef, retryCount + 1);
+    return spotifyFetch(path, tokenRef, options, retryCount + 1);
   }
 
   if (!res.ok) return null;
-  return res.json();
+  if (res.status === 204) {
+    return { success: true };
+  }
+  try {
+    return await res.json();
+  } catch {
+    return { success: true };
+  }
 }
 
 export async function getTopArtists(tokenRef, limit = 20, timeRange = 'medium_term') {
@@ -264,14 +279,9 @@ export async function createPlaylist(userId, name, description, tokenRef) {
   const log = tokenRef?.onLog || ((msg) => console.log(msg));
   log(`[Spotify API] Creating playlist: "${name}"...`);
 
-  // Ensure fresh token if expiring
-  let token = tokenRef.current;
-  if (!token) return null;
-
-  const res = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+  return spotifyFetch(`/users/${userId}/playlists`, tokenRef, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token.access_token}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
@@ -280,33 +290,21 @@ export async function createPlaylist(userId, name, description, tokenRef) {
       public: false
     })
   });
-
-  log(`[Spotify API] POST /users/${userId}/playlists - Status: ${res.status}`);
-  if (!res.ok) return null;
-  return res.json();
 }
 
 export async function addTracksToPlaylist(playlistId, trackUris, tokenRef) {
   const log = tokenRef?.onLog || ((msg) => console.log(msg));
   log(`[Spotify API] Adding ${trackUris.length} tracks to playlist...`);
 
-  let token = tokenRef.current;
-  if (!token) return null;
-
-  const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+  return spotifyFetch(`/playlists/${playlistId}/tracks`, tokenRef, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token.access_token}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       uris: trackUris
     })
   });
-
-  log(`[Spotify API] POST /playlists/${playlistId}/tracks - Status: ${res.status}`);
-  if (!res.ok) return null;
-  return res.json();
 }
 
 export async function getUserPlaylists(tokenRef) {
@@ -328,23 +326,23 @@ export async function replacePlaylistTracks(playlistId, trackUris, tokenRef) {
   const log = tokenRef?.onLog || ((msg) => console.log(msg));
   log(`[Spotify API] Replacing tracks in playlist: ${playlistId}...`);
 
-  let token = tokenRef.current;
-  if (!token) return null;
-
-  const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+  return spotifyFetch(`/playlists/${playlistId}/tracks`, tokenRef, {
     method: 'PUT',
     headers: {
-      Authorization: `Bearer ${token.access_token}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       uris: trackUris
     })
   });
+}
 
-  log(`[Spotify API] PUT /playlists/${playlistId}/tracks - Status: ${res.status}`);
-  if (!res.ok) return null;
-  return res.json();
+export async function getTracksDetails(trackIds, tokenRef) {
+  if (!trackIds || trackIds.length === 0) return [];
+  // Max 50 IDs per request
+  const ids = trackIds.slice(0, 50).join(',');
+  const data = await spotifyFetch(`/tracks?ids=${ids}`, tokenRef);
+  return data?.tracks ?? [];
 }
 
 export async function getArtistTopTracks(artistId, tokenRef, market = 'US') {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTopArtists, searchArtist, getArtistTracksViaSearch, clearCache, getArtistTopTracks, getUserPlaylists, replacePlaylistTracks } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTracksViaSearch, clearCache, getArtistTopTracks, getUserPlaylists, replacePlaylistTracks, getTracksDetails } from '../api/spotify';
 import * as spotifyAuth from '../auth/spotifyAuth';
 
 vi.mock('../auth/spotifyAuth', () => ({
@@ -186,6 +186,22 @@ describe('Spotify API Layer', () => {
         method: 'PUT',
         body: JSON.stringify({ uris: ['spotify:track:t1'] })
       })
+    );
+  });
+
+  it('successfully fetches track details in batch', async () => {
+    const mockTracks = [{ id: 't1', name: 'Electric Feel', popularity: 85 }];
+    fetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ tracks: mockTracks }),
+    });
+
+    const res = await getTracksDetails(['t1'], tokenRef);
+    expect(res).toEqual(mockTracks);
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.spotify.com/v1/tracks?ids=t1',
+      expect.any(Object)
     );
   });
 });

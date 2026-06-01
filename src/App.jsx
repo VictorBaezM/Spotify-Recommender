@@ -102,7 +102,10 @@ function App() {
         if (tokenRef.onLog) {
           tokenRef.onLog(`Found existing "My Co-Listening Mix" playlist (ID: ${playlist.id}). Replacing tracks...`);
         }
-        await replacePlaylistTracks(playlist.id, trackUris, tokenRef);
+        const res = await replacePlaylistTracks(playlist.id, trackUris, tokenRef);
+        if (!res) {
+          throw new Error('Failed to replace tracks in existing Spotify playlist.');
+        }
         if (tokenRef.onLog) {
           tokenRef.onLog(`[Success] Playlist successfully synchronized! ID: ${playlist.id}`);
         }
@@ -111,11 +114,15 @@ function App() {
           tokenRef.onLog('Creating new "My Co-Listening Mix" playlist...');
         }
         const playlistDesc = `Your custom co-listening recommendations mix, updated on ${new Date().toLocaleDateString()}.`;
-        playlist = await createPlaylist(userId, 'My Co-Listening Mix', playlistDesc, tokenRef);
-        if (!playlist || !playlist.id) {
+        const newPlaylist = await createPlaylist(userId, 'My Co-Listening Mix', playlistDesc, tokenRef);
+        if (!newPlaylist || !newPlaylist.id) {
           throw new Error('Failed to create Spotify playlist.');
         }
-        await addTracksToPlaylist(playlist.id, trackUris, tokenRef);
+        const res = await addTracksToPlaylist(newPlaylist.id, trackUris, tokenRef);
+        if (!res) {
+          throw new Error('Failed to add tracks to the newly created Spotify playlist.');
+        }
+        playlist = newPlaylist;
         if (tokenRef.onLog) {
           tokenRef.onLog(`[Success] Playlist successfully created & populated! ID: ${playlist.id}`);
         }

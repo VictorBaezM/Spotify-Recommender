@@ -48,6 +48,13 @@ describe('Full pipeline integration', () => {
       }
       return [];
     });
+    spotifyApi.getTracksDetails.mockImplementation(async (ids) => {
+      return ids.map(id => {
+        if (id === 't1') return { id: 't1', name: 'Electric Feel', popularity: 85, artists: [{ name: 'MGMT' }] };
+        if (id === 't2') return { id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] };
+        return null;
+      });
+    });
     spotifyApi.getTopTracks.mockResolvedValue([]);
     spotifyApi.getRecentlyPlayed.mockResolvedValue([]);
     spotifyApi.getSavedTracks.mockResolvedValue([]);
