@@ -81,15 +81,30 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
   }
 
   if (res.status === 429) {
-    if (retryCount >= 4) { // Increased retries to tolerate transient spikes
-      log('Rate limited repeatedly. Stopping request.');
-      throw new Error('RATE_LIMIT_EXCEEDED');
-    }
     const retryAfterHeader = res.headers.get('Retry-After');
     let retryAfter = parseInt(retryAfterHeader, 10);
     if (isNaN(retryAfter)) {
-      retryAfter = 6; // Increased fallback for CORS-hidden headers
+      retryAfter = 6;
     }
+
+    if (retryCount >= 4) { // Increased retries to tolerate transient spikes
+      log('Rate limited repeatedly. Stopping request.');
+      try {
+        const cooldownSecs = isNaN(retryAfter) ? 120 : retryAfter;
+        const expiry = Date.now() + cooldownSecs * 1000;
+        sessionStorage.setItem('spotify_rate_limit_expiry', expiry.toString());
+        window.dispatchEvent(new Event('spotify_rate_limit_updated'));
+      } catch {}
+      throw new Error('RATE_LIMIT_EXCEEDED');
+    }
+
+    try {
+      const waitSecs = retryAfter + Math.ceil(Math.pow(3, retryCount));
+      const expiry = Date.now() + waitSecs * 1000;
+      sessionStorage.setItem('spotify_rate_limit_expiry', expiry.toString());
+      window.dispatchEvent(new Event('spotify_rate_limit_updated'));
+    } catch {}
+
     // Exponential backoff base 3 with randomized jitter to disperse concurrent retries
     const jitter = Math.random() * 1000;
     const wait = (retryAfter + Math.pow(3, retryCount)) * 1000 + jitter;

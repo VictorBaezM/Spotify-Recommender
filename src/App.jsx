@@ -7,10 +7,12 @@ import { RecommendationGrid } from './components/RecommendationGrid';
 import { ErrorBanner } from './components/ErrorBanner';
 import { InstantFavorites } from './components/InstantFavorites';
 import { getTopTracks, getRecentlyPlayed } from './api/spotify';
+import { useRateLimitCooldown } from './hooks/useRateLimitCooldown';
 
 function App() {
   const { token, tokenRef, loading: tokenLoading, error: tokenError, login, logout } = useSpotifyToken();
   const { run, abort, step, progress, recommendations, error: pipelineError, warnings, logs, PIPELINE_STEPS } = usePipeline(tokenRef);
+  const cooldown = useRateLimitCooldown();
   const [timeRange, setTimeRange] = useState('medium_term');
   const [localWarnings, setLocalWarnings] = useState([]);
   const [instantTracks, setInstantTracks] = useState([]);
@@ -133,6 +135,7 @@ function App() {
             onRetry={handleRetry}
             onChangeTimeRange={handleOpenTimeRangeSelect}
             onLogout={logout}
+            cooldown={cooldown}
           />
         )}
 
@@ -182,9 +185,14 @@ function App() {
                   </div>
                   <button
                     onClick={handleRetry}
-                    className="px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-widest transition-all cursor-pointer"
+                    disabled={cooldown > 0}
+                    className={`px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest transition-all ${
+                      cooldown > 0
+                        ? "bg-neutral-800 border border-neutral-700 text-neutral-500 cursor-not-allowed select-none"
+                        : "bg-emerald-500 hover:bg-emerald-400 text-neutral-950 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+                    }`}
                   >
-                    Start Analysis
+                    {cooldown > 0 ? `Cooldown: ${Math.floor(cooldown / 60)}:${(cooldown % 60).toString().padStart(2, '0')}` : "Start Analysis"}
                   </button>
                 </div>
               )
