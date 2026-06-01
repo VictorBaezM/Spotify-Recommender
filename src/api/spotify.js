@@ -334,7 +334,7 @@ export async function replacePlaylistTracks(playlistId, trackUris, tokenRef) {
   return res.json();
 }
 
-export async function getArtistTopTracks(artistId, tokenRef, market = 'US') {
+export async function getArtistTopTracks(artistId, tokenRef, market = 'from_token') {
   const cacheKey = `artist_top_tracks_${artistId}_${market}`;
   const cached = localCache.get(cacheKey);
   if (cached) {

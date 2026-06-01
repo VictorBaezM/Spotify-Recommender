@@ -277,7 +277,7 @@ export function usePipeline(tokenRef) {
           setProgress(progressPercent);
           addLog(`Step 3: Fetching tracks for "${resolved[i].name}" ${i + 1}/${maxToFetch} (${progressPercent}%)`);
           try {
-            const tracks = await getArtistTopTracks(resolved[i].id, tokenRef, 'US');
+            const tracks = await getArtistTopTracks(resolved[i].id, tokenRef, 'from_token');
             if (currentRunId !== runIdRef.current || abortRef.current) return;
             if (tracks) {
               addLog(`Step 3 Match: Fetched ${tracks.length} tracks for "${resolved[i].name}".`);
