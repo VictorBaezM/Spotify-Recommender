@@ -9,6 +9,9 @@ export function RecommendationGrid({
   onChangeTimeRange,
   isPipelineRunning,
   onRefresh,
+  exportedPlaylistId,
+  isExporting,
+  onExportPlaylist,
 }) {
   const [sortBy, setSortBy] = useState('match'); // 'match' or 'popularity'
 
@@ -50,10 +53,47 @@ export function RecommendationGrid({
           </div>
         </div>
 
-        {/* Sorting and Refresh Controls */}
-        <div className="flex items-center gap-3">
+        {/* Export and Sorting Controls */}
+        <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end">
+          {/* Export / Sync to Spotify Playlist Button */}
+          <button
+            onClick={onExportPlaylist}
+            disabled={isExporting || isPipelineRunning}
+            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 shadow ${
+              exportedPlaylistId
+                ? "bg-neutral-850 text-emerald-400 border border-emerald-500/20 cursor-default select-none"
+                : isExporting
+                ? "bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 animate-pulse cursor-wait"
+                : "bg-emerald-500 hover:bg-emerald-400 text-neutral-950 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            }`}
+          >
+            {exportedPlaylistId ? (
+              <>
+                <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.886 14.417c-.198.324-.622.427-.946.229-2.584-1.58-5.837-1.938-9.667-1.063-.37.085-.73-.153-.815-.523-.085-.369.153-.73.522-.815 4.195-.96 7.785-.556 10.677 1.213.324.198.427.622.229.959zm1.303-2.718c-.249.405-.783.535-1.188.286-2.957-1.817-7.466-2.344-10.957-1.285-.454.137-.929-.118-1.066-.572-.138-.454.118-.93.572-1.067 3.992-1.211 8.956-.622 12.363 1.472.405.25.535.783.286 1.186zM18.3 11.08c-.298.487-.93.649-1.417.352-3.447-2.048-9.13-2.235-12.449-1.229-.543.165-1.114-.143-1.279-.687-.165-.543.143-1.114.687-1.279 3.948-1.198 10.218-.979 14.205 1.388.488.298.65.93.353 1.417z"/>
+                </svg>
+                ✓ Synced: My Co-Listening Mix
+              </>
+            ) : isExporting ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5 text-emerald-300" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Syncing Playlist...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm5.545 14.422c-.198.324-.622.427-.946.229-2.584-1.58-5.837-1.938-9.667-1.063-.37.085-.73-.153-.815-.523-.085-.369.153-.73.522-.815 4.195-.96 7.785-.556 10.677 1.213.324.198.427.622.229.959zm1.303-2.718c-.249.405-.783.535-1.188.286-2.957-1.817-7.466-2.344-10.957-1.285-.454.137-.929-.118-1.066-.572-.138-.454.118-.93.572-1.067 3.992-1.211 8.956-.622 12.363 1.472.405.25.535.783.286 1.186zm.109-2.839c-.298.487-.93.649-1.417.352-3.447-2.048-9.13-2.235-12.449-1.229-.543.165-1.114-.143-1.279-.687-.165-.543.143-1.114.687-1.279 3.948-1.198 10.218-.979 14.205 1.388.488.298.65.93.353 1.417z"/>
+                </svg>
+                Sync with My Co-Listening Mix
+              </>
+            )}
+          </button>
+
           <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Sort by:</span>
+            <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Sort:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -102,10 +142,30 @@ export function RecommendationGrid({
         </div>
       )}
 
+      {/* Single Playlist Embed Player (Visible when exported) */}
+      {exportedPlaylistId && (
+        <div className="w-full rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-800 shadow-xl p-0.5 animate-fadeIn">
+          <iframe
+            src={`https://open.spotify.com/embed/playlist/${exportedPlaylistId}?utm_source=generator&theme=0`}
+            width="100%"
+            height="380"
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            title="Spotify Recommendations Playlist Player"
+            className="block"
+          />
+        </div>
+      )}
+
       {/* Recommendations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedTracks.map(track => (
-          <RecommendationCard key={track.id} track={track} />
+          <RecommendationCard 
+            key={track.id} 
+            track={track} 
+            isPlaylistExported={!!exportedPlaylistId}
+          />
         ))}
       </div>
     </div>

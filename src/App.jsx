@@ -6,7 +6,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { RecommendationGrid } from './components/RecommendationGrid';
 import { ErrorBanner } from './components/ErrorBanner';
 import { InstantFavorites } from './components/InstantFavorites';
-import { getTopTracks, getRecentlyPlayed } from './api/spotify';
+import { getTopTracks, getRecentlyPlayed, getCurrentUserId, createPlaylist, addTracksToPlaylist, getUserPlaylists, replacePlaylistTracks } from './api/spotify';
 import { useRateLimitCooldown } from './hooks/useRateLimitCooldown';
 
 function App() {
@@ -17,6 +17,20 @@ function App() {
   const [localWarnings, setLocalWarnings] = useState([]);
   const [instantTracks, setInstantTracks] = useState([]);
   const [instantLoading, setInstantLoading] = useState(false);
+  const [exportedPlaylistId, setExportedPlaylistId] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Reset playlist state on new run
+  useEffect(() => {
+    setExportedPlaylistId(null);
+  }, [recommendations, timeRange]);
+
+  // Auto-sync to playlist when recommendations are generated
+  useEffect(() => {
+    if (recommendations && recommendations.length > 0 && !exportedPlaylistId && !isExporting) {
+      handleExportPlaylist();
+    }
+  }, [recommendations]);
 
   // Auto-run pipeline when token is obtained or when timeRange changes
   useEffect(() => {
@@ -61,6 +75,61 @@ function App() {
 
   const handleDismissWarning = (warnToDismiss) => {
     setLocalWarnings(prev => prev.filter(w => w !== warnToDismiss));
+  };
+
+  const handleExportPlaylist = async () => {
+    if (!token || !recommendations.length) return;
+    setIsExporting(true);
+    if (tokenRef.onLog) {
+      tokenRef.onLog('Initializing Spotify playlist synchronization...');
+    }
+    try {
+      const userId = await getCurrentUserId(tokenRef);
+      if (!userId) {
+        throw new Error('Could not fetch Spotify user ID.');
+      }
+      
+      if (tokenRef.onLog) {
+        tokenRef.onLog('Searching for existing "My Co-Listening Mix" playlist...');
+      }
+      
+      const playlists = await getUserPlaylists(tokenRef);
+      let playlist = playlists.find(p => p.name === 'My Co-Listening Mix' && p.owner?.id === userId);
+      
+      const trackUris = recommendations.map(t => t.uri).filter(Boolean);
+      
+      if (playlist) {
+        if (tokenRef.onLog) {
+          tokenRef.onLog(`Found existing "My Co-Listening Mix" playlist (ID: ${playlist.id}). Replacing tracks...`);
+        }
+        await replacePlaylistTracks(playlist.id, trackUris, tokenRef);
+        if (tokenRef.onLog) {
+          tokenRef.onLog(`[Success] Playlist successfully synchronized! ID: ${playlist.id}`);
+        }
+      } else {
+        if (tokenRef.onLog) {
+          tokenRef.onLog('Creating new "My Co-Listening Mix" playlist...');
+        }
+        const playlistDesc = `Your custom co-listening recommendations mix, updated on ${new Date().toLocaleDateString()}.`;
+        playlist = await createPlaylist(userId, 'My Co-Listening Mix', playlistDesc, tokenRef);
+        if (!playlist || !playlist.id) {
+          throw new Error('Failed to create Spotify playlist.');
+        }
+        await addTracksToPlaylist(playlist.id, trackUris, tokenRef);
+        if (tokenRef.onLog) {
+          tokenRef.onLog(`[Success] Playlist successfully created & populated! ID: ${playlist.id}`);
+        }
+      }
+      
+      setExportedPlaylistId(playlist.id);
+    } catch (err) {
+      console.error('Failed to sync playlist:', err);
+      if (tokenRef.onLog) {
+        tokenRef.onLog(`[Error] Failed to synchronize playlist: ${err.message || err}`);
+      }
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleRetry = () => {
@@ -173,6 +242,9 @@ function App() {
                   onChangeTimeRange={handleChangeTimeRange}
                   isPipelineRunning={isPipelineRunning}
                   onRefresh={handleRetry}
+                  exportedPlaylistId={exportedPlaylistId}
+                  isExporting={isExporting}
+                  onExportPlaylist={handleExportPlaylist}
                 />
               </div>
             ) : (

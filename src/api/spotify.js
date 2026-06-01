@@ -232,3 +232,120 @@ export function clearCache() {
   }
 }
 
+export async function getCurrentUserId(tokenRef) {
+  const cacheKey = 'current_user_id';
+  const cached = localCache.get(cacheKey);
+  if (cached) {
+    console.log('[Cache Hit] getCurrentUserId');
+    return cached;
+  }
+  const data = await spotifyFetch('/me', tokenRef);
+  const userId = data?.id;
+  if (userId) {
+    localCache.set(cacheKey, userId, 86400000); // 24 hours TTL
+  }
+  return userId;
+}
+
+export async function createPlaylist(userId, name, description, tokenRef) {
+  const log = tokenRef?.onLog || ((msg) => console.log(msg));
+  log(`[Spotify API] Creating playlist: "${name}"...`);
+
+  // Ensure fresh token if expiring
+  let token = tokenRef.current;
+  if (!token) return null;
+
+  const res = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name,
+      description,
+      public: false
+    })
+  });
+
+  log(`[Spotify API] POST /users/${userId}/playlists - Status: ${res.status}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function addTracksToPlaylist(playlistId, trackUris, tokenRef) {
+  const log = tokenRef?.onLog || ((msg) => console.log(msg));
+  log(`[Spotify API] Adding ${trackUris.length} tracks to playlist...`);
+
+  let token = tokenRef.current;
+  if (!token) return null;
+
+  const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      uris: trackUris
+    })
+  });
+
+  log(`[Spotify API] POST /playlists/${playlistId}/tracks - Status: ${res.status}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getUserPlaylists(tokenRef) {
+  const cacheKey = 'user_playlists';
+  const cached = localCache.get(cacheKey);
+  if (cached) {
+    console.log('[Cache Hit] getUserPlaylists');
+    return cached;
+  }
+  const data = await spotifyFetch('/me/playlists?limit=50', tokenRef);
+  const items = data?.items ?? [];
+  if (items.length > 0) {
+    localCache.set(cacheKey, items, 30000); // 30 seconds cache
+  }
+  return items;
+}
+
+export async function replacePlaylistTracks(playlistId, trackUris, tokenRef) {
+  const log = tokenRef?.onLog || ((msg) => console.log(msg));
+  log(`[Spotify API] Replacing tracks in playlist: ${playlistId}...`);
+
+  let token = tokenRef.current;
+  if (!token) return null;
+
+  const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      uris: trackUris
+    })
+  });
+
+  log(`[Spotify API] PUT /playlists/${playlistId}/tracks - Status: ${res.status}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getArtistTopTracks(artistId, tokenRef, market = 'US') {
+  const cacheKey = `artist_top_tracks_${artistId}_${market}`;
+  const cached = localCache.get(cacheKey);
+  if (cached) {
+    console.log(`[Cache Hit] getArtistTopTracks: ${artistId}`);
+    return cached;
+  }
+  const data = await spotifyFetch(`/artists/${artistId}/top-tracks?market=${market}`, tokenRef);
+  const items = data?.tracks ?? [];
+  if (items.length > 0) {
+    localCache.set(cacheKey, items, 300000); // 5 minutes TTL
+  }
+  return items;
+}
+

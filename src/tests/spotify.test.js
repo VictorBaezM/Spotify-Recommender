@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTopArtists, searchArtist, getArtistTracksViaSearch, clearCache } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTracksViaSearch, clearCache, getArtistTopTracks, getUserPlaylists, replacePlaylistTracks } from '../api/spotify';
 import * as spotifyAuth from '../auth/spotifyAuth';
 
 vi.mock('../auth/spotifyAuth', () => ({
@@ -134,4 +134,59 @@ describe('Spotify API Layer', () => {
       expect.any(Object)
     );
   });
+
+  it('successfully fetches artist top tracks directly', async () => {
+    const mockTracks = [{ id: 't1', name: 'Electric Feel' }];
+    fetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        tracks: mockTracks
+      }),
+    });
+
+    const tracks = await getArtistTopTracks('b1', tokenRef);
+    expect(tracks).toEqual(mockTracks);
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.spotify.com/v1/artists/b1/top-tracks?market=US',
+      expect.any(Object)
+    );
+  });
+
+  it('successfully fetches user playlists', async () => {
+    const mockPlaylists = [{ id: 'p1', name: 'My Co-Listening Mix' }];
+    fetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        items: mockPlaylists
+      }),
+    });
+
+    const playlists = await getUserPlaylists(tokenRef);
+    expect(playlists).toEqual(mockPlaylists);
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.spotify.com/v1/me/playlists?limit=50',
+      expect.any(Object)
+    );
+  });
+
+  it('successfully replaces playlist tracks', async () => {
+    fetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ snapshot_id: 'snap1' }),
+    });
+
+    const res = await replacePlaylistTracks('p1', ['spotify:track:t1'], tokenRef);
+    expect(res).toEqual({ snapshot_id: 'snap1' });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.spotify.com/v1/playlists/p1/tracks',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ uris: ['spotify:track:t1'] })
+      })
+    );
+  });
 });
+

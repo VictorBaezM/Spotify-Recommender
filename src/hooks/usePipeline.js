@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { getTopArtists, searchArtist, getArtistTracksViaSearch, getTopTracks, getRecentlyPlayed, getSavedTracks } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTopTracks, getTopTracks, getRecentlyPlayed, getSavedTracks } from '../api/spotify';
 import { getSimilarArtists } from '../api/lastfm';
 import { aggregateSimilarArtists } from '../pipeline/aggregate';
 import { isAcceptableMatch, artistMatchScore } from '../pipeline/fuzzyMatch';
@@ -47,19 +47,26 @@ export function usePipeline(tokenRef) {
 
     setStep(3); // Step 3: Fetching tracks
     setProgress(0);
-    const fallbackArtists = ['Tame Impala', 'Gorillaz', 'Daft Punk', 'Billie Eilish', 'The Weeknd', 'Radiohead'];
+    const fallbackArtists = [
+      { name: 'Tame Impala', id: '5INjqkS1o8h1imAzPqGZBb' },
+      { name: 'Gorillaz', id: '3AA28KZvwAUcZuOKwyblJQ' },
+      { name: 'Daft Punk', id: '4tZwfBAbgWc15R2x34BrC7' },
+      { name: 'Billie Eilish', id: '6qqNVTkY8uByO4C3g67a4s' },
+      { name: 'The Weeknd', id: '1Xyo1hbrkuLq14NcvZ518t' },
+      { name: 'Radiohead', id: '4Z8W4fKeB5YxbusRsdQVPb' }
+    ];
     const fallbackTracks = [];
 
     for (let i = 0; i < fallbackArtists.length; i++) {
       if (currentRunId !== runIdRef.current || abortRef.current) return;
       const progressPercent = Math.round((i / fallbackArtists.length) * 100);
       setProgress(progressPercent);
-      addLog(`Fetching popular tracks for Curated Artist ${i + 1}/${fallbackArtists.length}: "${fallbackArtists[i]}" (${progressPercent}%)`);
+      addLog(`Fetching popular tracks for Curated Artist ${i + 1}/${fallbackArtists.length}: "${fallbackArtists[i].name}" (${progressPercent}%)`);
       try {
-        const tracks = await getArtistTracksViaSearch(fallbackArtists[i], tokenRef, 6);
+        const tracks = await getArtistTopTracks(fallbackArtists[i].id, tokenRef, 'US');
         if (tracks && tracks.length > 0) {
-          addLog(`Success: Retrieved ${tracks.length} tracks for "${fallbackArtists[i]}"`);
-          tracks.forEach(t => {
+          addLog(`Success: Retrieved ${tracks.length} tracks for "${fallbackArtists[i].name}"`);
+          tracks.slice(0, 6).forEach(t => {
             fallbackTracks.push({
               ...t,
               _artistSimilarity: 0.8,
@@ -68,7 +75,7 @@ export function usePipeline(tokenRef) {
           });
         }
       } catch (err) {
-        addLog(`Failed to fetch popular tracks for "${fallbackArtists[i]}": ${err.message || err}`);
+        addLog(`Failed to fetch popular tracks for "${fallbackArtists[i].name}": ${err.message || err}`);
       }
       await delay(400); // Pace requests to stay rate limit safe
     }
@@ -322,11 +329,11 @@ export function usePipeline(tokenRef) {
           setProgress(progressPercent);
           addLog(`Step 3: Fetching tracks for "${resolved[i].name}" ${i + 1}/${maxToFetch} (${progressPercent}%)`);
           try {
-            const tracks = await getArtistTracksViaSearch(resolved[i].name, tokenRef, 10);
+            const tracks = await getArtistTopTracks(resolved[i].id, tokenRef, 'US');
             if (currentRunId !== runIdRef.current || abortRef.current) return;
             if (tracks) {
               addLog(`Step 3 Match: Fetched ${tracks.length} tracks for "${resolved[i].name}".`);
-              tracks.forEach(t => candidateTracks.push({ ...t, _artistSimilarity: resolved[i]._lastfmScore }));
+              tracks.slice(0, 10).forEach(t => candidateTracks.push({ ...t, _artistSimilarity: resolved[i]._lastfmScore }));
             } else {
               addLog(`Step 3 Match Failed: No tracks returned for artist "${resolved[i].name}".`);
             }

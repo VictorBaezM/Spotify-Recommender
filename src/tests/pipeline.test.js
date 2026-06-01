@@ -39,12 +39,15 @@ describe('Full pipeline integration', () => {
       }
       return [];
     });
-    spotifyApi.getArtistTracksViaSearch.mockImplementation(async (name) => {
-      if (name === 'MGMT') {
+    spotifyApi.getArtistTopTracks.mockImplementation(async (id) => {
+      if (id === 'b1') {
         return [{ id: 't1', name: 'Electric Feel', popularity: 85, artists: [{ name: 'MGMT' }] }];
       }
-      if (name === 'Beach House') {
+      if (id === 'b2') {
         return [{ id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] }];
+      }
+      if (id === '5INjqkS1o8h1imAzPqGZBb') { // Curated fallback ID for Tame Impala
+        return [{ id: 't3', name: 'Borderline', popularity: 75, artists: [{ name: 'Tame Impala' }] }];
       }
       return [];
     });
