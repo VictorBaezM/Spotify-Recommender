@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { getTopArtists, searchArtist, getArtistTopTracks, getTopTracks, getRecentlyPlayed, getSavedTracks } from '../api/spotify';
+import { getTopArtists, searchArtist, getArtistTopTracks, getTopTracks, getRecentlyPlayed, getSavedTracks, getCurrentUserCountry } from '../api/spotify';
 import { getSimilarArtists } from '../api/lastfm';
 import { aggregateSimilarArtists } from '../pipeline/aggregate';
 import { isAcceptableMatch, artistMatchScore } from '../pipeline/fuzzyMatch';
@@ -277,10 +277,17 @@ export function usePipeline(tokenRef) {
           setProgress(progressPercent);
           addLog(`Step 3: Fetching tracks for "${resolved[i].name}" ${i + 1}/${maxToFetch} (${progressPercent}%)`);
           try {
-            const tracks = await getArtistTopTracks(resolved[i].id, tokenRef, 'from_token');
+            let market = 'US';
+            try {
+              const country = await getCurrentUserCountry(tokenRef);
+              if (country) market = country;
+            } catch (countryErr) {
+              console.warn('Failed to dynamically fetch user country scope, defaulting to US market:', countryErr);
+            }
+            const tracks = await getArtistTopTracks(resolved[i].id, tokenRef, market);
             if (currentRunId !== runIdRef.current || abortRef.current) return;
             if (tracks) {
-              addLog(`Step 3 Match: Fetched ${tracks.length} tracks for "${resolved[i].name}".`);
+              addLog(`Step 3 Match: Fetched ${tracks.length} tracks for "${resolved[i].name}" in market ${market}.`);
               tracks.slice(0, 10).forEach(t => candidateTracks.push({ ...t, _artistSimilarity: resolved[i]._lastfmScore }));
             } else {
               addLog(`Step 3 Match Failed: No tracks returned for artist "${resolved[i].name}".`);

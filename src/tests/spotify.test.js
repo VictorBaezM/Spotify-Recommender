@@ -148,7 +148,7 @@ describe('Spotify API Layer', () => {
     const tracks = await getArtistTopTracks('b1', tokenRef);
     expect(tracks).toEqual(mockTracks);
     expect(fetch).toHaveBeenCalledWith(
-      'https://api.spotify.com/v1/artists/b1/top-tracks?market=from_token',
+      'https://api.spotify.com/v1/artists/b1/top-tracks?market=US',
       expect.any(Object)
     );
   });

@@ -247,6 +247,19 @@ export async function getCurrentUserId(tokenRef) {
   return userId;
 }
 
+export async function getCurrentUserCountry(tokenRef) {
+  const cacheKey = 'current_user_country';
+  const cached = localCache.get(cacheKey);
+  if (cached) {
+    console.log('[Cache Hit] getCurrentUserCountry');
+    return cached;
+  }
+  const data = await spotifyFetch('/me', tokenRef);
+  const country = data?.country ?? 'US';
+  localCache.set(cacheKey, country, 86400000); // 24 hours TTL
+  return country;
+}
+
 export async function createPlaylist(userId, name, description, tokenRef) {
   const log = tokenRef?.onLog || ((msg) => console.log(msg));
   log(`[Spotify API] Creating playlist: "${name}"...`);
@@ -334,7 +347,7 @@ export async function replacePlaylistTracks(playlistId, trackUris, tokenRef) {
   return res.json();
 }
 
-export async function getArtistTopTracks(artistId, tokenRef, market = 'from_token') {
+export async function getArtistTopTracks(artistId, tokenRef, market = 'US') {
   const cacheKey = `artist_top_tracks_${artistId}_${market}`;
   const cached = localCache.get(cacheKey);
   if (cached) {
