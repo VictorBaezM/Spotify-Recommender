@@ -26,16 +26,28 @@ describe('Full pipeline integration', () => {
     spotifyApi.getTopArtists.mockResolvedValue([
       { id: 'a1', name: 'Tame Impala', popularity: 80 }
     ]);
-    lastfmApi.getSimilarArtists.mockResolvedValue([
-      { name: 'MGMT', match: '0.85' },
-      { name: 'Beach House', match: '0.78' },
-    ]);
+    lastfmApi.getSimilarArtists.mockImplementation(async (artistName) => {
+      if (artistName === 'MGMT') {
+        return [{ name: 'Tame Impala', match: '0.85' }];
+      }
+      if (artistName === 'Beach House') {
+        return [{ name: 'Tame Impala', match: '0.78' }];
+      }
+      return [
+        { name: 'MGMT', match: '0.85' },
+        { name: 'Beach House', match: '0.78' },
+      ];
+    });
     spotifyApi.searchArtist.mockImplementation(async (name) => {
-      if (name.toLowerCase() === 'mgmt') {
+      const clean = name.toLowerCase().trim();
+      if (clean === 'mgmt') {
         return [{ id: 'b1', name: 'MGMT', popularity: 70 }];
       }
-      if (name.toLowerCase() === 'beach house') {
+      if (clean === 'beach house') {
         return [{ id: 'b2', name: 'Beach House', popularity: 65 }];
+      }
+      if (clean === 'tame impala') {
+        return [{ id: 'a1', name: 'Tame Impala', popularity: 80 }];
       }
       return [];
     });
@@ -46,12 +58,16 @@ describe('Full pipeline integration', () => {
       if (name === 'Beach House') {
         return [{ id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] }];
       }
+      if (name === 'Tame Impala') {
+        return [{ id: 't3', name: 'The Less I Know The Better', popularity: 90, artists: [{ name: 'Tame Impala' }] }];
+      }
       return [];
     });
     spotifyApi.getTracksDetails.mockImplementation(async (ids) => {
       return ids.map(id => {
         if (id === 't1') return { id: 't1', name: 'Electric Feel', popularity: 85, artists: [{ name: 'MGMT' }] };
         if (id === 't2') return { id: 't2', name: 'Space Song', popularity: 80, artists: [{ name: 'Beach House' }] };
+        if (id === 't3') return { id: 't3', name: 'The Less I Know The Better', popularity: 90, artists: [{ name: 'Tame Impala' }] };
         return null;
       });
     });
@@ -110,5 +126,21 @@ describe('Full pipeline integration', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.warnings.some(w => w.includes('No listening history in Medium Term'))).toBe(true);
     expect(result.current.recommendations).toHaveLength(2);
+  });
+
+  it('runs recommendation pipeline based on custom seed artists', async () => {
+    const { result } = renderHook(() => usePipeline(tokenRef));
+    const customSeeds = [{ id: 'b1', name: 'MGMT' }, { id: 'b2', name: 'Beach House' }];
+
+    await act(async () => {
+      await result.current.run('medium_term', customSeeds);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.seedArtists).toHaveLength(2);
+    expect(result.current.seedArtists[0].name).toBe('MGMT');
+    expect(result.current.seedArtists[1].name).toBe('Beach House');
+    expect(result.current.recommendations).toHaveLength(1);
+    expect(spotifyApi.getTopArtists).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export function RecommendationCard({ track, isPlaylistExported }) {
+export function RecommendationCard({ track }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const matchPercent = Math.round((track._score ?? 0) * 100);
   const artistName = track.artists?.[0]?.name ?? 'Unknown Artist';
@@ -13,28 +13,7 @@ export function RecommendationCard({ track, isPlaylistExported }) {
       
       {/* Visual Header / Player Area */}
       <div className="relative w-full rounded-lg overflow-hidden bg-neutral-950 border border-neutral-850 aspect-video md:h-28 flex items-center justify-center">
-        {isPlaylistExported ? (
-          /* Static Summary View (Hides heavy iframe entirely since Playlist Player is active at the top) */
-          <div className="w-full h-full flex items-center gap-4 px-4 py-3 select-none">
-            {albumArt ? (
-              <img 
-                src={albumArt} 
-                alt={albumName} 
-                className="w-16 h-16 rounded shadow-md object-cover border border-neutral-800"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded bg-neutral-900 border border-neutral-800 flex items-center justify-center text-2xl">
-                🎵
-              </div>
-            )}
-            <div className="flex-1 min-w-0 text-left space-y-1">
-              <h4 className="font-bold text-sm text-white truncate leading-snug">{trackName}</h4>
-              <p className="text-xs text-neutral-400 truncate font-medium">{artistName}</p>
-              {albumName && <p className="text-[10px] text-neutral-500 truncate leading-snug">{albumName}</p>}
-            </div>
-          </div>
-        ) : isPlaying ? (
+        {isPlaying ? (
           /* On-Demand Active Spotify Iframe Embed */
           <iframe
             src={`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`}

@@ -23,6 +23,7 @@ export function usePipeline(tokenRef) {
   const [step, setStep] = useState(-1);        // Current pipeline step index
   const [progress, setProgress] = useState(0); // 0–100 within current step
   const [recommendations, setRecommendations] = useState([]);
+  const [seedArtists, setSeedArtists] = useState([]);
   const [error, setError] = useState(null);    // { message, recoverable, fallback }
   const [warnings, setWarnings] = useState([]); // Non-fatal degradation notices
   const [logs, setLogs] = useState([]);        // Real-time scrolling diagnostics
@@ -40,7 +41,7 @@ export function usePipeline(tokenRef) {
     console.log(`[${time}] ${msg}`);
   }, []);
 
-  const run = useCallback(async (initialTimeRange = 'medium_term') => {
+  const run = useCallback(async (initialTimeRange = 'medium_term', customArtists = null) => {
     runIdRef.current += 1;
     const currentRunId = runIdRef.current;
 
@@ -48,6 +49,7 @@ export function usePipeline(tokenRef) {
     setError(null);
     setWarnings([]);
     setRecommendations([]);
+    setSeedArtists([]);
     setLogs([]);
     setStep(0);
     setProgress(0);
@@ -64,54 +66,70 @@ export function usePipeline(tokenRef) {
     while (true) {
       if (currentRunId !== runIdRef.current || abortRef.current) return;
       try {
-        // STEP 0: Top Artists
+        // STEP 0: Top Artists (or Custom Artists if provided)
         setStep(0);
         setProgress(0);
-        addLog(`Step 0: Scanning your top artists for ${formatRangeName(currentTimeRange)}...`);
-        let topArtists = await getTopArtists(tokenRef, 20, currentTimeRange);
-        if (currentRunId !== runIdRef.current || abortRef.current) return;
         
-        // RECOVERY: If top artists is empty, extract artists from their top/recent/saved tracks!
-        if (!topArtists || !topArtists.length) {
-          addLog('Step 0: Spotify top artists list returned empty. Attempting to recover by extracting unique artists from your tracks history...');
-          try {
-            const [tracks1, tracks2, tracks3] = await Promise.allSettled([
-              getTopTracks(tokenRef, 30),
-              getRecentlyPlayed(tokenRef, 30),
-              getSavedTracks(tokenRef, 1)
-            ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
+        let topArtists = [];
+        if (customArtists && customArtists.length > 0) {
+          addLog(`Step 0 (Custom Selection): Using ${customArtists.length} user-selected seed artists...`);
+          topArtists = customArtists;
+        } else {
+          addLog(`Step 0: Scanning your top artists for ${formatRangeName(currentTimeRange)}...`);
+          topArtists = await getTopArtists(tokenRef, 20, currentTimeRange);
+          if (currentRunId !== runIdRef.current || abortRef.current) return;
+          
+          // RECOVERY: If top artists is empty, extract artists from their top/recent/saved tracks!
+          if (!topArtists || !topArtists.length) {
+            addLog('Step 0: Spotify top artists list returned empty. Attempting to recover by extracting unique artists from your tracks history...');
+            try {
+              const [tracks1, tracks2, tracks3] = await Promise.allSettled([
+                getTopTracks(tokenRef, 30),
+                getRecentlyPlayed(tokenRef, 30),
+                getSavedTracks(tokenRef, 1)
+              ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
-            const uniqueArtists = new Map();
-            const processTrack = (t) => {
-              if (t && t.artists && t.artists.length > 0) {
-                t.artists.forEach(art => {
-                  if (art.name && !uniqueArtists.has(art.name)) {
-                    uniqueArtists.set(art.name, {
-                      name: art.name,
-                      id: art.id || ''
-                    });
-                  }
-                });
+              const uniqueArtists = new Map();
+              const processTrack = (t) => {
+                if (t && t.artists && t.artists.length > 0) {
+                  t.artists.forEach(art => {
+                    if (art.name && !uniqueArtists.has(art.name)) {
+                      uniqueArtists.set(art.name, {
+                        name: art.name,
+                        id: art.id || ''
+                      });
+                    }
+                  });
+                }
+              };
+              
+              tracks1.forEach(processTrack);
+              tracks2.forEach(processTrack);
+              tracks3.forEach(processTrack);
+
+              const extractedArtists = Array.from(uniqueArtists.values());
+              if (extractedArtists.length > 0) {
+                topArtists = extractedArtists;
+                addLog(`Step 0 Success: Successfully extracted ${topArtists.length} unique artists from your listening history tracks.`);
               }
-            };
-            
-            tracks1.forEach(processTrack);
-            tracks2.forEach(processTrack);
-            tracks3.forEach(processTrack);
-
-            const extractedArtists = Array.from(uniqueArtists.values());
-            if (extractedArtists.length > 0) {
-              topArtists = extractedArtists;
-              addLog(`Step 0 Success: Successfully extracted ${topArtists.length} unique artists from your listening history tracks.`);
+            } catch (err) {
+              console.error('Failed to extract artists from tracks:', err);
+              addLog(`Step 0 Error: Failed to extract artists from tracks: ${err.message || err}`);
             }
-          } catch (err) {
-            console.error('Failed to extract artists from tracks:', err);
-            addLog(`Step 0 Error: Failed to extract artists from tracks: ${err.message || err}`);
           }
         }
 
         // CYCLE TIME RANGES: If still empty, cycle ranges
         if (!topArtists || !topArtists.length) {
+          if (customArtists && customArtists.length > 0) {
+            setError({
+              message: 'Your selected custom artists are invalid. Please try different ones!',
+              recoverable: true
+            });
+            setStep(-1);
+            return;
+          }
+
           const nextRange = getNextTimeRange(currentTimeRange, triedRanges);
           if (nextRange) {
             const prevRange = currentTimeRange;
@@ -131,14 +149,19 @@ export function usePipeline(tokenRef) {
           return;
         }
 
-        addLog(`Step 0 Success: Retrieved ${topArtists.length} top artists.`);
+        addLog(`Step 0 Success: Retrieved ${topArtists.length} seed artists.`);
 
-        if (topArtists.length > 5) {
+        if (customArtists && customArtists.length > 0) {
+          // Keep custom artists list exactly, up to 5, without randomizing!
+          topArtists = customArtists.slice(0, 5);
+        } else if (topArtists.length > 5) {
           addLog(`Step 0 Optimization: Selecting 5 random artists from your top roster to optimize API budget and maximize recommendation variety.`);
           const shuffled = [...topArtists].sort(() => 0.5 - Math.random());
           topArtists = shuffled.slice(0, 5);
-          addLog(`Step 0 Selected: ${topArtists.map(a => `"${a.name}"`).join(', ')}`);
         }
+        
+        addLog(`Step 0 Selected: ${topArtists.map(a => `"${a.name}"`).join(', ')}`);
+        setSeedArtists(topArtists);
 
         // STEP 1: Last.fm similar artists
         setStep(1);
@@ -244,6 +267,14 @@ export function usePipeline(tokenRef) {
           addWarning(`Only ${resolved.length} artists could be matched to Spotify. Recommendations may be limited.`);
         }
         if (resolved.length === 0) {
+          if (customArtists && customArtists.length > 0) {
+            setError({
+              message: 'Could not match any of your custom selected artists to the Spotify catalog. Please make sure they are spelled correctly!',
+              recoverable: true
+            });
+            setStep(-1);
+            return;
+          }
           const nextRange = getNextTimeRange(currentTimeRange, triedRanges);
           if (nextRange) {
             const prevRange = currentTimeRange;
@@ -360,6 +391,18 @@ export function usePipeline(tokenRef) {
         addLog(`Step 5 Success: Retained ${fresh.length}/${candidateTracks.length} unheard tracks.`);
 
         if (fresh.length === 0) {
+          if (customArtists && customArtists.length > 0) {
+            addWarning("You've already heard all generated candidates for these custom artists! Showing them anyway.");
+            addLog("Step 5 Warning: User has heard all custom artist candidates. Disabling filter.");
+            
+            setStep(6);
+            setProgress(0);
+            const scored = candidateTracks.map(t => ({ ...t, _score: scoreTrack(t, t._artistSimilarity) }));
+            const ranked = rankTracks(scored, 25);
+            setRecommendations(ranked);
+            setStep(-1);
+            return;
+          }
           const nextRange = getNextTimeRange(currentTimeRange, triedRanges);
           if (nextRange) {
             const prevRange = currentTimeRange;
@@ -417,7 +460,7 @@ export function usePipeline(tokenRef) {
         return;
       }
     }
-  }, [tokenRef, addLog]);
+  }, [tokenRef, addLog, setSeedArtists]);
 
   // Helper functions for automatic recovery cycling
   function getNextTimeRange(current, tried) {
@@ -441,5 +484,5 @@ export function usePipeline(tokenRef) {
 
   const abort = useCallback(() => { runIdRef.current += 1; abortRef.current = true; setStep(-1); }, []);
 
-  return { run, abort, step, progress, recommendations, error, warnings, logs, PIPELINE_STEPS };
+  return { run, abort, step, progress, recommendations, seedArtists, error, warnings, logs, PIPELINE_STEPS };
 }

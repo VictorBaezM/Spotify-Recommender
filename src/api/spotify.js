@@ -287,7 +287,7 @@ export async function createPlaylist(userId, name, description, tokenRef) {
     body: JSON.stringify({
       name,
       description,
-      public: false
+      public: true
     })
   });
 }
