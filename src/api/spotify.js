@@ -82,15 +82,14 @@ async function spotifyFetch(path, tokenRef, retryCount = 0) {
 
   if (res.status === 429) {
     const retryAfterHeader = res.headers.get('Retry-After');
-    let retryAfter = parseInt(retryAfterHeader, 10);
-    if (isNaN(retryAfter)) {
-      retryAfter = 6;
-    }
+    const parsedRetryAfter = parseInt(retryAfterHeader, 10);
+    const isHeaderHidden = isNaN(parsedRetryAfter);
+    let retryAfter = isHeaderHidden ? 6 : parsedRetryAfter;
 
     if (retryCount >= 4) { // Increased retries to tolerate transient spikes
       log('Rate limited repeatedly. Stopping request.');
       try {
-        const cooldownSecs = isNaN(retryAfter) ? 120 : retryAfter;
+        const cooldownSecs = isHeaderHidden ? 120 : retryAfter;
         const expiry = Date.now() + cooldownSecs * 1000;
         sessionStorage.setItem('spotify_rate_limit_expiry', expiry.toString());
         window.dispatchEvent(new Event('spotify_rate_limit_updated'));
